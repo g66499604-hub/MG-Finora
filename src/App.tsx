@@ -20,6 +20,7 @@ import { FinancialCalendar } from './components/FinancialCalendar';
 import { CreditDebitOverview } from './components/CreditDebitOverview';
 import { Settings } from './components/Settings';
 import { About } from './components/About';
+import { Footer } from './components/Footer';
 import { AddTransactionModal } from './components/AddTransactionModal';
 
 export const App: React.FC = () => {
@@ -358,6 +359,8 @@ export const App: React.FC = () => {
 
         {currentScreen === 'ABOUT' && <About />}
       </main>
+
+      <Footer onNavigate={setCurrentScreen} />
 
       {showAddModal && (
         <AddTransactionModal
