@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Account, Bill, Budget, Category, FinoraScreen, Loan, SavingsGoal, Transaction, UserProfile } from './types';
 import { StorageService } from './utils/storage';
 import { calculateSummary } from './utils/financialEngine';
+import { isSupabaseConfigured, supabase, OWNER_EMAIL, OWNER_NAME } from './utils/supabaseClient';
+import { AuditLogger } from './utils/auditLogger';
+import { I18nProvider, useI18n } from './i18n/I18nContext';
 
 // Components
 import { Navbar } from './components/Navbar';
@@ -21,9 +24,12 @@ import { CreditDebitOverview } from './components/CreditDebitOverview';
 import { Settings } from './components/Settings';
 import { About } from './components/About';
 import { Footer } from './components/Footer';
+import { AdminDashboard } from './components/AdminDashboard';
 import { AddTransactionModal } from './components/AddTransactionModal';
+import { AuthModal } from './components/AuthModal';
 
-export const App: React.FC = () => {
+const AppInner: React.FC = () => {
+  const { t } = useI18n();
   const [currentScreen, setCurrentScreen] = useState<FinoraScreen>('DASHBOARD');
   const [profile, setProfile] = useState<UserProfile>(() => StorageService.getProfile());
   const [accounts, setAccounts] = useState<Account[]>(() => StorageService.getAccounts());
@@ -35,6 +41,44 @@ export const App: React.FC = () => {
   const [bills, setBills] = useState<Bill[]>(() => StorageService.getBills());
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // Authenticated user state
+  const [user, setUser] = useState<{
+    email: string;
+    displayName: string;
+    role: 'owner' | 'admin' | 'member';
+  } | null>(() => {
+    try {
+      const saved = localStorage.getItem('mg_finora_user_session');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {
+      email: OWNER_EMAIL,
+      displayName: OWNER_NAME,
+      role: 'owner'
+    };
+  });
+
+  // Check Supabase session on boot if configured
+  useEffect(() => {
+    if (isSupabaseConfigured() && supabase) {
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session?.user) {
+          const u = data.session.user;
+          const userEmail = u.email || '';
+          const isOwner = userEmail.toLowerCase() === OWNER_EMAIL.toLowerCase();
+          const sessionUser = {
+            email: userEmail,
+            displayName: u.user_metadata?.full_name || userEmail.split('@')[0],
+            role: (isOwner ? 'owner' : 'member') as 'owner' | 'admin' | 'member'
+          };
+          setUser(sessionUser);
+          localStorage.setItem('mg_finora_user_session', JSON.stringify(sessionUser));
+        }
+      });
+    }
+  }, []);
 
   // Initialize sample data on very first launch if empty
   useEffect(() => {
@@ -47,6 +91,7 @@ export const App: React.FC = () => {
       setBills(sample.bills);
       setAccounts(StorageService.getAccounts());
       localStorage.setItem('mg_finora_has_run', 'true');
+      AuditLogger.log('SYSTEM_INIT', 'Data', 'Default fintech portfolio & demo ledgers seeded');
     }
   }, []);
 
@@ -59,6 +104,7 @@ export const App: React.FC = () => {
     setGoals(StorageService.getGoals());
     setLoans(StorageService.getLoans());
     setBills(StorageService.getBills());
+    AuditLogger.log('DATA_REFRESH', 'State', 'All memory states reloaded from storage vault');
   };
 
   const currency = profile.defaultCurrency || 'PKR';
@@ -73,9 +119,14 @@ export const App: React.FC = () => {
     const rebalanced = StorageService.recalculateBalances(accounts, updated);
     setAccounts(rebalanced);
     StorageService.saveAccounts(rebalanced);
+
+    AuditLogger.log('TRANSACTION_CREATED', 'Transaction', `${tx.type}: ${tx.title} (${tx.amount} ${tx.currency})`, tx.id, user?.email);
   };
 
   const handleDeleteTransaction = (id: string) => {
+    if (!window.confirm(t('modal_confirm_delete_msg'))) return;
+
+    const targetTx = transactions.find(t => t.id === id);
     const updated = transactions.filter(t => t.id !== id);
     setTransactions(updated);
     StorageService.saveTransactions(updated);
@@ -83,27 +134,34 @@ export const App: React.FC = () => {
     const rebalanced = StorageService.recalculateBalances(accounts, updated);
     setAccounts(rebalanced);
     StorageService.saveAccounts(rebalanced);
+
+    AuditLogger.log('TRANSACTION_DELETED', 'Transaction', `Deleted transaction: ${targetTx?.title || id}`, id, user?.email);
   };
 
   const handleAddAccount = (acc: Account) => {
     const updated = [...accounts, acc];
     setAccounts(updated);
     StorageService.saveAccounts(updated);
+    AuditLogger.log('ACCOUNT_CREATED', 'Account', `Created account: ${acc.name} (${acc.currency})`, acc.id, user?.email);
   };
 
   const handleDeleteAccount = (id: string) => {
+    if (!window.confirm(t('modal_confirm_delete_msg'))) return;
     const updated = accounts.filter(a => a.id !== id);
     setAccounts(updated);
     StorageService.saveAccounts(updated);
+    AuditLogger.log('ACCOUNT_DELETED', 'Account', `Deleted account ${id}`, id, user?.email);
   };
 
   const handleAddBudget = (b: Budget) => {
     const updated = [...budgets, b];
     setBudgets(updated);
     StorageService.saveBudgets(updated);
+    AuditLogger.log('BUDGET_CREATED', 'Budget', `Created budget: ${b.name} (${b.amount} ${b.currency})`, b.id);
   };
 
   const handleDeleteBudget = (id: string) => {
+    if (!window.confirm(t('modal_confirm_delete_msg'))) return;
     const updated = budgets.filter(b => b.id !== id);
     setBudgets(updated);
     StorageService.saveBudgets(updated);
@@ -113,15 +171,16 @@ export const App: React.FC = () => {
     const updated = [...goals, g];
     setGoals(updated);
     StorageService.saveGoals(updated);
+    AuditLogger.log('GOAL_CREATED', 'SavingsGoal', `Created goal: ${g.name} (${g.targetAmount} ${g.currency})`, g.id);
   };
 
   const handleContributeGoal = (goalId: string, amount: number, accountId: string) => {
     const targetGoal = goals.find(g => g.id === goalId);
     if (!targetGoal) return;
 
-    // Create a transaction
+    // Create transaction
     const tx: Transaction = {
-      id: `tx_${Date.now()}`,
+      id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       type: 'SAVINGS_CONTRIBUTION',
       title: `Contribution to ${targetGoal.name}`,
       amount,
@@ -141,6 +200,7 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteGoal = (id: string) => {
+    if (!window.confirm(t('modal_confirm_delete_msg'))) return;
     const updated = goals.filter(g => g.id !== id);
     setGoals(updated);
     StorageService.saveGoals(updated);
@@ -159,6 +219,7 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteLoan = (id: string) => {
+    if (!window.confirm(t('modal_confirm_delete_msg'))) return;
     const updated = loans.filter(l => l.id !== id);
     setLoans(updated);
     StorageService.saveLoans(updated);
@@ -177,6 +238,7 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteBill = (id: string) => {
+    if (!window.confirm(t('modal_confirm_delete_msg'))) return;
     const updated = bills.filter(b => b.id !== id);
     setBills(updated);
     StorageService.saveBills(updated);
@@ -189,6 +251,7 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteCategory = (id: string) => {
+    if (!window.confirm(t('modal_confirm_delete_msg'))) return;
     const updated = categories.filter(c => c.id !== id);
     setCategories(updated);
     StorageService.saveCategories(updated);
@@ -197,15 +260,47 @@ export const App: React.FC = () => {
   const handleUpdateProfile = (newProfile: UserProfile) => {
     setProfile(newProfile);
     StorageService.saveProfile(newProfile);
+    AuditLogger.log('PROFILE_UPDATED', 'User', `Profile updated: ${newProfile.displayName}`, newProfile.id);
+  };
+
+  const handleDismissOnboarding = () => {
+    const updated = { ...profile, isOnboardingCompleted: true };
+    setProfile(updated);
+    StorageService.saveProfile(updated);
+  };
+
+  const handleSignOut = async () => {
+    if (isSupabaseConfigured() && supabase) {
+      await supabase.auth.signOut();
+    }
+    setUser(null);
+    localStorage.removeItem('mg_finora_user_session');
+    AuditLogger.log('AUTH_SIGNOUT', 'User', 'User session terminated');
+  };
+
+  const handleExportBackup = () => {
+    const jsonStr = StorageService.exportBackupJson();
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `mg_finora_vault_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    AuditLogger.log('BACKUP_EXPORT', 'System', 'Master JSON vault backup generated and exported');
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F7FB] dark:bg-[#0B1323] text-[#182338] dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
+    <div className="min-h-screen bg-[#F5F7FB] dark:bg-[#0B1220] text-[#182338] dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
       <Navbar
         currentScreen={currentScreen}
         onNavigate={setCurrentScreen}
         onQuickAdd={() => setShowAddModal(true)}
         currency={currency}
+        user={user}
+        onOpenAuth={() => setShowAuthModal(true)}
+        onSignOut={handleSignOut}
       />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-6">
@@ -221,6 +316,7 @@ export const App: React.FC = () => {
             onNavigate={setCurrentScreen}
             onQuickAdd={() => setShowAddModal(true)}
             onDeleteTransaction={handleDeleteTransaction}
+            onDismissOnboarding={handleDismissOnboarding}
           />
         )}
 
@@ -349,11 +445,35 @@ export const App: React.FC = () => {
           />
         )}
 
+        {currentScreen === 'ADMIN' && (
+          <AdminDashboard
+            summary={summary}
+            transactions={transactions}
+            accounts={accounts}
+            budgets={budgets}
+            goals={goals}
+            loans={loans}
+            categories={categories}
+            profile={profile}
+            currency={currency}
+            onRefreshData={refreshAllData}
+            onResetData={() => {
+              if (window.confirm('Reset all demo data and restore defaults?')) {
+                StorageService.clearAll();
+                StorageService.loadSampleData();
+                refreshAllData();
+              }
+            }}
+            onExportBackup={handleExportBackup}
+          />
+        )}
+
         {currentScreen === 'SETTINGS' && (
           <Settings
             profile={profile}
             onUpdateProfile={handleUpdateProfile}
             onReloadData={refreshAllData}
+            onNavigateToAdmin={() => setCurrentScreen('ADMIN')}
           />
         )}
 
@@ -374,6 +494,25 @@ export const App: React.FC = () => {
           onClose={() => setShowAddModal(false)}
         />
       )}
+
+      {showAuthModal && (
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          onAuthSuccess={(sessionUser) => {
+            setUser(sessionUser);
+            localStorage.setItem('mg_finora_user_session', JSON.stringify(sessionUser));
+          }}
+        />
+      )}
     </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <I18nProvider>
+      <AppInner />
+    </I18nProvider>
   );
 };

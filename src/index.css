@@ -3,7 +3,69 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --finora-navy: #0C1830;
+    --finora-gold: #E8C66D;
+  }
+
   * {
     box-sizing: border-box;
   }
+
+  html {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  /* Language-specific font optimization & fallbacks */
+  html[lang="ur"] {
+    font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Urdu Typesetting', 'Segoe UI', Tahoma, sans-serif;
+    line-height: 1.8;
+  }
+
+  html[lang="ar"] {
+    font-family: 'Noto Sans Arabic', 'Segoe UI', Tahoma, Arial, sans-serif;
+    line-height: 1.7;
+  }
+
+  html[lang="hi"] {
+    font-family: 'Noto Sans Devanagari', 'Mangal', 'Segoe UI', sans-serif;
+  }
+
+  html[lang="bn"] {
+    font-family: 'Noto Sans Bengali', 'Vrinda', 'Segoe UI', sans-serif;
+  }
+
+  html[lang="zh-CN"] {
+    font-family: -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+  }
+
+  /* RTL utility adjustments */
+  [dir="rtl"] {
+    text-align: right;
+  }
+
+  [dir="rtl"] .ltr-only {
+    direction: ltr;
+    text-align: left;
+  }
+}
+
+/* Custom premium Navy & Gold utilities */
+.bg-gradient-finora {
+  background: linear-gradient(135deg, #0C1830 0%, #172A47 100%);
+}
+
+.bg-gradient-gold {
+  background: linear-gradient(135deg, #E8C66D 0%, #C9A043 100%);
+}
+
+.text-gold-gradient {
+  background: linear-gradient(135deg, #F5D98E 0%, #E8C66D 50%, #C9A043 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.border-gold-glow {
+  border-color: rgba(232, 198, 109, 0.35);
+  box-shadow: 0 0 15px rgba(232, 198, 109, 0.1);
 }

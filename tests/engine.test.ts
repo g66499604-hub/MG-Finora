@@ -103,5 +103,43 @@ describe('FinancialEngine', () => {
 
     const sameCurrency = convertCurrency(500, 'PKR', 'PKR');
     assert.equal(sameCurrency, 500);
+
+    const eurToPkr = convertCurrency(10, 'EUR', 'PKR');
+    assert.equal(eurToPkr, 3050);
+
+    const sarToPkr = convertCurrency(100, 'SAR', 'PKR');
+    assert.equal(sarToPkr, 7460);
+
+    const aedToPkr = convertCurrency(100, 'AED', 'PKR');
+    assert.equal(aedToPkr, 7620);
+  });
+});
+
+describe('InternationalizationSuite', () => {
+  it('provides all 8 required languages with RTL configuration', async () => {
+    const { SUPPORTED_LANGUAGES } = await import('../src/i18n/types.ts');
+    assert.equal(SUPPORTED_LANGUAGES.length, 8);
+
+    const codes = SUPPORTED_LANGUAGES.map(l => l.code);
+    assert.deepEqual(codes, ['en', 'ur', 'hi', 'ar', 'es', 'zh-CN', 'fr', 'bn']);
+
+    const urdu = SUPPORTED_LANGUAGES.find(l => l.code === 'ur');
+    const arabic = SUPPORTED_LANGUAGES.find(l => l.code === 'ar');
+    assert.equal(urdu?.dir, 'rtl');
+    assert.equal(arabic?.dir, 'rtl');
+  });
+
+  it('guarantees core translation dictionary keys exist across all 8 languages', async () => {
+    const { TRANSLATIONS } = await import('../src/i18n/translations.ts');
+    const { SUPPORTED_LANGUAGES } = await import('../src/i18n/types.ts');
+
+    for (const lang of SUPPORTED_LANGUAGES) {
+      const dict = TRANSLATIONS[lang.code];
+      assert.ok(dict, `Dictionary missing for language: ${lang.code}`);
+      assert.ok(dict.nav_dashboard, `nav_dashboard missing for ${lang.code}`);
+      assert.ok(dict.action_add_transaction, `action_add_transaction missing for ${lang.code}`);
+      assert.ok(dict.metric_total_balance, `metric_total_balance missing for ${lang.code}`);
+      assert.ok(dict.branding_developed_by, `branding_developed_by missing for ${lang.code}`);
+    }
   });
 });

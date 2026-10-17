@@ -149,5 +149,6 @@ export type FinoraScreen =
   | 'CATEGORIES'
   | 'REPORTS'
   | 'CALENDAR'
+  | 'ADMIN'
   | 'SETTINGS'
   | 'ABOUT';

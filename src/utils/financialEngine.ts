@@ -1,5 +1,32 @@
 import type { Account, Budget, Loan, SavingsGoal, Transaction } from '../types';
 
+export interface CurrencyConfig {
+  code: string;
+  name: string;
+  symbol: string;
+  rateToPkr: number;
+  flag: string;
+}
+
+export const SUPPORTED_CURRENCIES: CurrencyConfig[] = [
+  { code: 'PKR', name: 'Pakistani Rupee', symbol: 'Rs', rateToPkr: 1.0, flag: '🇵🇰' },
+  { code: 'USD', name: 'US Dollar', symbol: '$', rateToPkr: 280.0, flag: '🇺🇸' },
+  { code: 'EUR', name: 'Euro', symbol: '€', rateToPkr: 305.0, flag: '🇪🇺' },
+  { code: 'GBP', name: 'British Pound', symbol: '£', rateToPkr: 360.0, flag: '🇬🇧' },
+  { code: 'SAR', name: 'Saudi Riyal', symbol: '﷼', rateToPkr: 74.6, flag: '🇸🇦' },
+  { code: 'AED', name: 'UAE Dirham', symbol: 'د.إ', rateToPkr: 76.2, flag: '🇦🇪' },
+  { code: 'INR', name: 'Indian Rupee', symbol: '₹', rateToPkr: 3.35, flag: '🇮🇳' },
+  { code: 'CAD', name: 'Canadian Dollar', symbol: 'C$', rateToPkr: 205.0, flag: '🇨🇦' },
+  { code: 'AUD', name: 'Australian Dollar', symbol: 'A$', rateToPkr: 182.0, flag: '🇦🇺' }
+];
+
+export const EXCHANGE_RATES_METADATA = {
+  source: 'Open Market Reference / Central Bank Consensus',
+  baseCurrency: 'PKR',
+  lastUpdated: '2026-10-15',
+  notes: 'Used transparently when consolidating multi-currency portfolios into the user-selected default reporting currency.'
+};
+
 export const CURRENCY_SYMBOLS: Record<string, string> = {
   PKR: 'Rs',
   USD: '$',
@@ -29,7 +56,8 @@ export function convertCurrency(amount: number, from: string, to: string): numbe
   const fromRate = EXCHANGE_RATES_TO_PKR[from.toUpperCase()] || 1.0;
   const toRate = EXCHANGE_RATES_TO_PKR[to.toUpperCase()] || 1.0;
   const amountInPkr = amount * fromRate;
-  return toRate > 0 ? amountInPkr / toRate : amount;
+  const result = toRate > 0 ? amountInPkr / toRate : amount;
+  return Math.round((result + Number.EPSILON) * 10000) / 10000;
 }
 
 export function formatCurrency(amount: number, currency: string = 'PKR', showDecimals: boolean = false): string {

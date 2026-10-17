@@ -62,6 +62,12 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 About
               </button>
               <button
+                onClick={() => onNavigate('ADMIN')}
+                className="hover:text-[#E8C66D] text-[#E8C66D] font-bold transition-colors"
+              >
+                👑 Owner Panel
+              </button>
+              <button
                 onClick={() => onNavigate('SETTINGS')}
                 className="hover:text-[#E8C66D] transition-colors"
               >
