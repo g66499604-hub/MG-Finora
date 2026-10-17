@@ -1,4 +1,4 @@
-import { Account, Budget, Loan, SavingsGoal, Transaction } from '../types';
+import type { Account, Budget, Loan, SavingsGoal, Transaction } from '../types';
 
 export const CURRENCY_SYMBOLS: Record<string, string> = {
   PKR: 'Rs',
